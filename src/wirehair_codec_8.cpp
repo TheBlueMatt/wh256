@@ -203,6 +203,8 @@
 #include "wirehair_codec_8.hpp"
 #include "gf256.h"
 
+#include <new>
+
 
 //// Precompiler-conditional console output
 
@@ -5039,7 +5041,7 @@ bool Codec::AllocateInput()
         FreeInput();
 
         // Allocate input blocks
-        _input_blocks = new uint8_t[size];
+        _input_blocks = new(std::nothrow) uint8_t[size];
         if (!_input_blocks) return false;
         _input_allocated = size;
     }
@@ -5090,7 +5092,7 @@ bool Codec::AllocateMatrix()
     {
         FreeMatrix();
 
-        uint8_t * GF256_RESTRICT matrix = new uint8_t[size];
+        uint8_t * GF256_RESTRICT matrix = new(std::nothrow) uint8_t[size];
         if (!matrix) return false;
         _ge_allocated = size;
         _compress_matrix = reinterpret_cast<uint64_t *>( matrix );
@@ -5150,7 +5152,7 @@ bool Codec::AllocateWorkspace()
         FreeWorkspace();
 
         // Allocate workspace
-        _recovery_blocks = new uint8_t[size];
+        _recovery_blocks = new(std::nothrow) uint8_t[size];
         if (!_recovery_blocks) return false;
         _workspace_allocated = size;
     }
