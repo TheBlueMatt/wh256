@@ -188,12 +188,13 @@ int main()
 
         assert(N == wh256_count(encoder));
 
-        double encode_time = t1 - t0;
-        cout << "wirehair_encode(N = " << N << ") in " << encode_time << " usec, " << bytes / encode_time << " MB/s" << endl;
+        double encode_time_base = t1 - t0;
+        double encode_time_extra = 0.;
 
         // For each trial,
         uint32_t overhead = 0;
         double reconstruct_time = 0;
+        int sumLosses = 0;
         for (int ii = 0; ii < TRIALS; ++ii)
         {
             // Initialize decoder
@@ -209,6 +210,7 @@ int main()
                 // 50% packetloss to randomize received message IDs
                 if (prng.Next() % 100 < 50)
                 {
+                    ++sumLosses;
                     continue;
                 }
 
@@ -216,7 +218,10 @@ int main()
                 ++blocks_needed;
 
                 // Write a block
+                t0 = m_clock.usec();
                 int writeResult = wh256_encoder_write(encoder, id, block);
+                t1 = m_clock.usec();
+                encode_time_extra += t1 - t0;
                 assert(0 == writeResult);
 
                 // If decoder is ready,
@@ -227,6 +232,7 @@ int main()
                     if (0 == wh256_decoder_reconstruct(decoder, message_out))
                     {
                         t1 = m_clock.usec();
+                        reconstruct_time += t1 - t0;
 
                         if (memcmp(message_in, message_out, bytes))
                         {
@@ -245,12 +251,14 @@ int main()
                 }
             }
             overhead += blocks_needed - N;
-            reconstruct_time += t1 - t0;
         }
 
         double overhead_avg = overhead / (double)TRIALS;
         double reconstruct_avg = reconstruct_time / TRIALS;
-        cout << "wirehair_decode(N = " << N << ") average overhead = " << overhead_avg << " blocks, average reconstruct time = " << reconstruct_avg << " usec, " << bytes / reconstruct_avg << " MB/s" << endl;
+        double encode_time = (encode_time_base + encode_time_extra / TRIALS);
+
+        cout << ">> wirehair_encode(N = " << N << ") in " << encode_time << " usec, " << bytes / encode_time << " MB/s after " << (sumLosses / (double)TRIALS) << " avg losses" << endl;
+        cout << "<< wirehair_decode(N = " << N << ") average overhead = " << overhead_avg << " blocks, average reconstruct time = " << reconstruct_avg << " usec, " << bytes / reconstruct_avg << " MB/s" << endl;
 
         if (overhead_avg > 0.04)
         {

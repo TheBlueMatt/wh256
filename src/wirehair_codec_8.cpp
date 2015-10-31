@@ -2589,14 +2589,14 @@ bool Codec::Triangle()
                     }
 
                     // x = rem_value / code_value
-                    uint8_t x = gf256_div(&GF256Ctx, rem_value, code_value);
+                    uint8_t x = gf256_div(rem_value, code_value);
 
                     // Store value for later
                     rem_row[heavy_col_i] = x;
 
                     // rem[i+] += x * pivot[i+]
                     const int offset = heavy_col_i + 1;
-                    gf256_muladd_mem(&GF256Ctx, rem_row + offset, x, pivot_row + offset, _heavy_columns - offset);
+                    gf256_muladd_mem(rem_row + offset, x, pivot_row + offset, _heavy_columns - offset);
                 } // next remaining row
             }
 
@@ -3269,7 +3269,7 @@ void Codec::AddSubdiagonalValues()
                 // Look up data source
                 const uint8_t * GF256_RESTRICT src = _recovery_blocks + _block_bytes * _ge_col_map[sub_i];
 
-                gf256_muladd_mem(&GF256Ctx, dest, code_value, src, _block_bytes);
+                gf256_muladd_mem(dest, code_value, src, _block_bytes);
                 CAT_IF_ROWOP(if (code_value == 1) ++rowops; else ++heavyops;)
                 CAT_IF_DUMP(cout << " h" << ge_column_i << "=[" << (int)src[0] << "*" << (int)code_value << "]";)
             }
@@ -3490,7 +3490,7 @@ void Codec::BackSubstituteAboveDiagonal()
                     // Normalize code value, setting it to 1 (implicitly nonzero)
                     if (code_value != 1)
                     {
-                        gf256_div_mem(&GF256Ctx, src, src, code_value, _block_bytes);
+                        gf256_div_mem(src, src, code_value, _block_bytes);
                         CAT_IF_ROWOP(++heavyops;)
                     }
 
@@ -3518,7 +3518,7 @@ void Codec::BackSubstituteAboveDiagonal()
 
                         // Back-substitute
                         uint8_t * GF256_RESTRICT dest = _recovery_blocks + _block_bytes * _ge_col_map[dest_pivot_i];
-                        gf256_muladd_mem(&GF256Ctx, dest, code_value, src, _block_bytes);
+                        gf256_muladd_mem(dest, code_value, src, _block_bytes);
                         CAT_IF_ROWOP(if (code_value == 1) ++rowops; else ++heavyops;)
                         CAT_IF_DUMP(cout << " h" << dest_pivot_i;)
                     }
@@ -3553,7 +3553,7 @@ void Codec::BackSubstituteAboveDiagonal()
                 if (code_value != 1)
                 {
                     uint8_t * GF256_RESTRICT src = _recovery_blocks + _block_bytes * _ge_col_map[backsub_i];
-                    gf256_div_mem(&GF256Ctx, src, src, code_value, _block_bytes);
+                    gf256_div_mem(src, src, code_value, _block_bytes);
                     CAT_IF_ROWOP(++heavyops;)
                 }
             }
@@ -3662,7 +3662,7 @@ void Codec::BackSubstituteAboveDiagonal()
 
                         // Back-substitute
                         const uint8_t * GF256_RESTRICT src = _recovery_blocks + _block_bytes * _ge_col_map[ge_column_j];
-                        gf256_muladd_mem(&GF256Ctx, dest, code_value, src, _block_bytes);
+                        gf256_muladd_mem(dest, code_value, src, _block_bytes);
                         CAT_IF_ROWOP(if (code_value == 1) ++rowops; else ++heavyops;)
                     } // next column in row
                 } // next pivot in window
@@ -3785,7 +3785,7 @@ void Codec::BackSubstituteAboveDiagonal()
             // Normalize code value, setting it to 1 (implicitly nonzero)
             if (code_value != 1)
             {
-                gf256_div_mem(&GF256Ctx, src, src, code_value, _block_bytes);
+                gf256_div_mem(src, src, code_value, _block_bytes);
                 CAT_IF_ROWOP(++heavyops;)
             }
 
@@ -3813,7 +3813,7 @@ void Codec::BackSubstituteAboveDiagonal()
 
                 // Back-substitute
                 uint8_t * GF256_RESTRICT dest = _recovery_blocks + _block_bytes * _ge_col_map[ge_up_i];
-                gf256_muladd_mem(&GF256Ctx, dest, code_value, src, _block_bytes);
+                gf256_muladd_mem(dest, code_value, src, _block_bytes);
                 CAT_IF_ROWOP(if (code_value == 1) ++rowops; else ++heavyops;)
                 CAT_IF_DUMP(cout << " h" << up_row_i;)
             }
@@ -4662,17 +4662,17 @@ Result Codec::ResumeSolveMatrix(uint32_t id, const void *block)
                 if (pivot_code == 1)
                 {
                     // heavy[m+] += exist[m+] * code_value
-                    gf256_muladd_mem(&GF256Ctx, heavy_row + start_column, code_value, pivot_row + start_column, _heavy_columns - start_column);
+                    gf256_muladd_mem(heavy_row + start_column, code_value, pivot_row + start_column, _heavy_columns - start_column);
                 }
                 else
                 {
-                    uint8_t eliminator = gf256_div(&GF256Ctx, code_value, pivot_code);
+                    uint8_t eliminator = gf256_div(code_value, pivot_code);
 
                     // Store eliminator for later
                     heavy_row[heavy_col_j] = eliminator;
 
                     // heavy[m+] += exist[m+] * eliminator
-                    gf256_muladd_mem(&GF256Ctx, heavy_row + start_column, eliminator, pivot_row + start_column, _heavy_columns - start_column);
+                    gf256_muladd_mem(heavy_row + start_column, eliminator, pivot_row + start_column, _heavy_columns - start_column);
                 }
             }
             else

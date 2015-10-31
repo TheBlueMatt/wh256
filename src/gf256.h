@@ -1,29 +1,29 @@
 /*
-    Copyright (c) 2015 Christopher A. Taylor.  All rights reserved.
+	Copyright (c) 2015 Christopher A. Taylor.  All rights reserved.
 
-    Redistribution and use in source and binary forms, with or without
-    modification, are permitted provided that the following conditions are met:
+	Redistribution and use in source and binary forms, with or without
+	modification, are permitted provided that the following conditions are met:
 
-    * Redistributions of source code must retain the above copyright notice,
-      this list of conditions and the following disclaimer.
-    * Redistributions in binary form must reproduce the above copyright notice,
-      this list of conditions and the following disclaimer in the documentation
-      and/or other materials provided with the distribution.
-    * Neither the name of CM256 nor the names of its contributors may be
-      used to endorse or promote products derived from this software without
-      specific prior written permission.
+	* Redistributions of source code must retain the above copyright notice,
+	  this list of conditions and the following disclaimer.
+	* Redistributions in binary form must reproduce the above copyright notice,
+	  this list of conditions and the following disclaimer in the documentation
+	  and/or other materials provided with the distribution.
+	* Neither the name of CM256 nor the names of its contributors may be
+	  used to endorse or promote products derived from this software without
+	  specific prior written permission.
 
-    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-    AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-    IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-    ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
-    LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-    CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-    SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-    INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-    CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-    ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-    POSSIBILITY OF SUCH DAMAGE.
+	THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+	AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+	IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+	ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+	LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+	CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+	SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+	INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+	CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+	ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+	POSSIBILITY OF SUCH DAMAGE.
 */
 
 #ifndef GF256_H
@@ -33,7 +33,10 @@
 #include <string.h> // memcpy, memset
 
 // Library version
-#define GF256_VERSION 1
+#define GF256_VERSION 2
+
+// TBD: Fix the polynomial at one value and use precomputed tables here to
+// simplify the API for GF256.h version 2.  Avoids user data alignment issues.
 
 
 //-----------------------------------------------------------------------------
@@ -111,6 +114,8 @@ struct gf256_ctx // 141,072 bytes
     #pragma warning(pop)
 #endif
 
+extern gf256_ctx GF256Ctx;
+
 
 //-----------------------------------------------------------------------------
 // Initialization
@@ -132,9 +137,8 @@ struct gf256_ctx // 141,072 bytes
 //
 // Returns 0 on success and other values on failure.
 
-// TBD: We should probably just statically initialize this to avoid multiple copies.
-extern int gf256_init_(gf256_ctx* ctx, int polynomialIndex, int version);
-#define gf256_init(ctxPtr) gf256_init_(ctxPtr, 3, GF256_VERSION)
+extern int gf256_init_(int version);
+#define gf256_init() gf256_init_(GF256_VERSION)
 
 
 //-----------------------------------------------------------------------------
@@ -148,22 +152,22 @@ static GF256_FORCE_INLINE uint8_t gf256_add(uint8_t x, uint8_t y)
 
 // return x * y
 // For repeated multiplication by a constant, it is faster to put the constant in y.
-static GF256_FORCE_INLINE uint8_t gf256_mul(gf256_ctx* ctx, uint8_t x, uint8_t y)
+static GF256_FORCE_INLINE uint8_t gf256_mul(uint8_t x, uint8_t y)
 {
-    return ctx->GF256_MUL_TABLE[((unsigned)y << 8) + x];
+    return GF256Ctx.GF256_MUL_TABLE[((unsigned)y << 8) + x];
 }
 
 // return x / y
 // Memory-access optimized for constant divisors in y.
-static GF256_FORCE_INLINE uint8_t gf256_div(gf256_ctx* ctx, uint8_t x, uint8_t y)
+static GF256_FORCE_INLINE uint8_t gf256_div(uint8_t x, uint8_t y)
 {
-    return ctx->GF256_DIV_TABLE[((unsigned)y << 8) + x];
+    return GF256Ctx.GF256_DIV_TABLE[((unsigned)y << 8) + x];
 }
 
 // return 1 / x
-static GF256_FORCE_INLINE uint8_t gf256_inv(gf256_ctx* ctx, uint8_t x)
+static GF256_FORCE_INLINE uint8_t gf256_inv(uint8_t x)
 {
-    return ctx->GF256_INV_TABLE[x];
+    return GF256Ctx.GF256_INV_TABLE[x];
 }
 
 // Performs "x[] += y[]" bulk memory XOR operation
@@ -179,19 +183,19 @@ extern void gf256_addset_mem(void * GF256_RESTRICT vz, const void * GF256_RESTRI
                              const void * GF256_RESTRICT vy, int bytes);
 
 // Performs "z[] += x[] * y" bulk memory operation
-extern void gf256_muladd_mem(gf256_ctx* ctx, void * GF256_RESTRICT vz, uint8_t y,
+extern void gf256_muladd_mem(void * GF256_RESTRICT vz, uint8_t y,
                              const void * GF256_RESTRICT vx, int bytes);
 
 // Performs "z[] = x[] * y" bulk memory operation
-extern void gf256_mul_mem(gf256_ctx* ctx, void * GF256_RESTRICT vz,
+extern void gf256_mul_mem(void * GF256_RESTRICT vz,
                           const void * GF256_RESTRICT vx, uint8_t y, int bytes);
 
 // Performs "x[] /= y" bulk memory operation
-static GF256_FORCE_INLINE void gf256_div_mem(gf256_ctx* ctx, void * GF256_RESTRICT vz,
+static GF256_FORCE_INLINE void gf256_div_mem(void * GF256_RESTRICT vz,
                                              const void * GF256_RESTRICT vx, uint8_t y, int bytes)
 {
     // Multiply by inverse
-    gf256_mul_mem(ctx, vz, vx, ctx->GF256_INV_TABLE[y], bytes);
+    gf256_mul_mem(vz, vx, GF256Ctx.GF256_INV_TABLE[y], bytes);
 }
 
 

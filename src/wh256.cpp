@@ -26,9 +26,6 @@
     POSSIBILITY OF SUCH DAMAGE.
 */
 
-#include <iostream>
-using namespace std;
-
 #include "wh256.h"
 
 #include "cm256.h"
@@ -36,7 +33,7 @@ using namespace std;
 
 static bool m_init = false;
 
-static const int WIREHAIR_THRESHOLD_N = 32;
+static const int WIREHAIR_THRESHOLD_N = 28;
 
 int wh256_init_(int expected_version)
 {
@@ -46,7 +43,7 @@ int wh256_init_(int expected_version)
         return -1;
     }
 
-    if (gf256_init(&wirehair::GF256Ctx))
+    if (gf256_init())
     {
         return -2;
     }
@@ -224,13 +221,13 @@ int wh256_encoder_write(wh256_state E, unsigned int id, void* block)
     }
 
     // CM256:
-    if (id < codec->EncoderParams.OriginalCount)
+    if (id < static_cast<unsigned int>(codec->EncoderParams.OriginalCount))
     {
         memcpy(block, codec->Blocks[id].Block, codec->EncoderParams.BlockBytes);
     }
     else
     {
-        if (id >= codec->EncoderParams.OriginalCount)
+        if (id >= static_cast<unsigned int>(codec->EncoderParams.OriginalCount))
         {
             id = ((id - codec->EncoderParams.OriginalCount) % codec->EncoderParams.RecoveryCount) + codec->EncoderParams.OriginalCount;
         }
@@ -323,7 +320,7 @@ int wh256_decoder_read(wh256_state E, unsigned int id, const void *block)
         return -1;
     }
 
-    if (id >= codec->EncoderParams.OriginalCount)
+    if (id >= static_cast<unsigned int>(codec->EncoderParams.OriginalCount))
     {
         id = ((id - codec->EncoderParams.OriginalCount) % codec->EncoderParams.RecoveryCount) + codec->EncoderParams.OriginalCount;
     }
