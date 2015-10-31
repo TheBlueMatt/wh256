@@ -241,8 +241,6 @@ using namespace std;
 
 namespace wirehair {
 
-GF256_ALIGNED gf256_ctx GF256Ctx;
-
 
 //// Utility: Get Result String function
 
