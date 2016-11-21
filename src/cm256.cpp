@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2015 Christopher A. Taylor.  All rights reserved.
+	Copyright (c) 2015-2016 Christopher A. Taylor.  All rights reserved.
 
 	Redistribution and use in source and binary forms, with or without
 	modification, are permitted provided that the following conditions are met:
@@ -138,7 +138,7 @@ extern "C" void cm256_encode_block(
     int recoveryBlockIndex,      // Return value from cm256_get_recovery_block_index()
     void* recoveryBlock)         // Output recovery block
 {
-    // If only one block of input data,
+    // If only one block of input data:
     if (params.OriginalCount == 1)
     {
         // No meaningful operation here, degenerate to outputting the same data each time.
@@ -161,7 +161,15 @@ extern "C" void cm256_encode_block(
         return;
     }
 
-    // TBD: Faster algorithms seem to exist for computing this matrix-vector product.
+    // There are faster algorithms to compute this matrix-vector product based
+    // on FFT, but they seem to start being faster at a much larger matrix size.
+    // The best example online I found was this from 2010:
+    // https://github.com/fdidier/fermat-reed-solomon/blob/master/fermat.cc
+
+    // There's also a promising approach for GF(2^^8) here:
+    // "Novel Polynomial Basis and Its Application to Reed-Solomon Erasure Codes" (2016)
+    // by Sian-Jheng Lin, Wei-Ho Chung, Yunghsiang S. Han
+    // http://www.citi.sinica.edu.tw/papers/whc/4454-F.pdf
 
     // Start the x_0 values arbitrarily from the original count.
     const uint8_t x_0 = static_cast<uint8_t>(params.OriginalCount);
@@ -178,7 +186,7 @@ extern "C" void cm256_encode_block(
             gf256_mul_mem(recoveryBlock, originals[0].Block, matrixElement, params.BlockBytes);
         }
 
-        // For each original data column,
+        // For each original data column:
         for (int j = 1; j < params.OriginalCount; ++j)
         {
             const uint8_t y_j = static_cast<uint8_t>(j);
@@ -267,12 +275,12 @@ bool CM256Decoder::Initialize(cm256_encoder_params& params, cm256_block* blocks)
         ErasuresIndices[ii] = 0;
     }
 
-    // For each input block,
+    // For each input block:
     for (int ii = 0; ii < params.OriginalCount; ++ii, ++block)
     {
         int row = block->Index;
 
-        // If it is an original block,
+        // If it is an original block:
         if (row < params.OriginalCount)
         {
             Original[OriginalCount++] = block;
@@ -314,7 +322,7 @@ void CM256Decoder::DecodeM1()
     uint8_t* outBlock = static_cast<uint8_t*>(Recovery[0]->Block);
     const uint8_t* inBlock = nullptr;
 
-    // For each block,
+    // For each block:
     for (int ii = 0; ii < OriginalCount; ++ii)
     {
         const uint8_t* inBlock2 = static_cast<const uint8_t*>(Original[ii]->Block);
@@ -505,12 +513,12 @@ void CM256Decoder::Decode()
     /*
         Eliminate lower left triangle.
     */
-    // For each column,
+    // For each column:
     for (int j = 0; j < N - 1; ++j)
     {
         const void* block_j = Recovery[j]->Block;
 
-        // For each row,
+        // For each row:
         for (int i = j + 1; i < N; ++i)
         {
             void* block_i = Recovery[i]->Block;
@@ -570,7 +578,7 @@ extern "C" int cm256_decode(
         return -3;
     }
 
-    // If there is only one block,
+    // If there is only one block:
     if (params.OriginalCount == 1)
     {
         // It is the same block repeated
@@ -584,13 +592,13 @@ extern "C" int cm256_decode(
         return -5;
     }
 
-    // If nothing is erased,
+    // If nothing is erased:
     if (state.RecoveryCount <= 0)
     {
         return 0;
     }
 
-    // If m=1,
+    // If m=1:
     if (params.RecoveryCount == 1)
     {
         state.DecodeM1();

@@ -86,23 +86,23 @@ extern GF256_ALIGNED gf256_ctx GF256Ctx;
 class Codec
 {
     // Parameters
-    uint32_t _block_bytes;                    // Number of bytes in a block
-    uint16_t _block_count;                    // Number of blocks in the message
-    uint16_t _block_next_prime;               // Next prime number at or above block count
-    uint16_t _extra_count;                    // Number of extra rows to allocate
-    uint32_t _p_seed;                         // Seed for peeled rows of check matrix
-    uint32_t _d_seed;                         // Seed for dense rows of check matrix
-    uint16_t _row_count;                      // Number of stored rows
-    uint16_t _mix_count;                      // Number of mix columns
-    uint16_t _mix_next_prime;                 // Next prime number at or above dense count
-    uint16_t _dense_count;                    // Number of added dense code rows
+    uint32_t _block_bytes;                      // Number of bytes in a block
+    uint16_t _block_count;                      // Number of blocks in the message
+    uint16_t _block_next_prime;                 // Next prime number at or above block count
+    uint16_t _extra_count;                      // Number of extra rows to allocate
+    uint32_t _p_seed;                           // Seed for peeled rows of check matrix
+    uint32_t _d_seed;                           // Seed for dense rows of check matrix
+    uint16_t _row_count;                        // Number of stored rows
+    uint16_t _mix_count;                        // Number of mix columns
+    uint16_t _mix_next_prime;                   // Next prime number at or above dense count
+    uint16_t _dense_count;                      // Number of added dense code rows
     uint8_t * GF256_RESTRICT _recovery_blocks;  // Recovery blocks
     uint8_t * GF256_RESTRICT _input_blocks;     // Input message blocks
-    uint32_t _input_final_bytes;              // Number of bytes in final block of input
-    uint32_t _output_final_bytes;             // Number of bytes in final block of output
-    uint32_t _input_allocated;                // Number of bytes allocated for input, or 0 if referenced
+    uint32_t _input_final_bytes;                // Number of bytes in final block of input
+    uint32_t _output_final_bytes;               // Number of bytes in final block of output
+    uint32_t _input_allocated;                  // Number of bytes allocated for input, or 0 if referenced
 #if defined(CAT_ALL_ORIGINAL)
-    bool _all_original;                       // Boolean: Only seen original data block identifiers
+    bool _all_original;                         // Boolean: Only seen original data block identifiers
 #endif
 
     // Peeling state
@@ -113,30 +113,30 @@ class Codec
     PeelColumn * GF256_RESTRICT _peel_cols;     // Array of N peeling matrix columns
     PeelRefs * GF256_RESTRICT _peel_col_refs;   // List of column references
     PeelRow * GF256_RESTRICT _peel_tail_rows;   // Tail of peeling solved rows list
-    uint32_t _workspace_allocated;            // Number of bytes allocated for workspace
+    uint32_t _workspace_allocated;              // Number of bytes allocated for workspace
     static const uint16_t LIST_TERM = 0xffff;
-    uint16_t _peel_head_rows;                 // Head of peeling solved rows list
-    uint16_t _defer_head_columns;             // Head of peeling deferred columns list
-    uint16_t _defer_head_rows;                // Head of peeling deferred rows list
-    uint16_t _defer_count;                    // Count of deferred rows
+    uint16_t _peel_head_rows;                   // Head of peeling solved rows list
+    uint16_t _defer_head_columns;               // Head of peeling deferred columns list
+    uint16_t _defer_head_rows;                  // Head of peeling deferred rows list
+    uint16_t _defer_count;                      // Count of deferred rows
 
     // Gaussian elimination state
     uint64_t * GF256_RESTRICT _ge_matrix;       // Gaussian elimination matrix
-    uint32_t _ge_allocated;                   // Number of bytes allocated to GE matrix
+    uint32_t _ge_allocated;                     // Number of bytes allocated to GE matrix
     uint64_t * GF256_RESTRICT _compress_matrix; // Gaussian elimination compression matrix
-    int _ge_pitch;                            // Words per row of GE matrix and compression matrix
+    int _ge_pitch;                              // Words per row of GE matrix and compression matrix
     uint16_t * GF256_RESTRICT _pivots;          // Pivots for each column of the GE matrix
-    uint16_t _pivot_count;                    // Number of pivots in the pivot list
+    uint16_t _pivot_count;                      // Number of pivots in the pivot list
     uint16_t * GF256_RESTRICT _ge_col_map;      // Map of GE columns to conceptual matrix columns
     uint16_t * GF256_RESTRICT _ge_row_map;      // Map of GE rows to conceptual matrix rows
-    uint16_t _next_pivot;                     // Pivot to resume Triangle() on after it fails
+    uint16_t _next_pivot;                       // Pivot to resume Triangle() on after it fails
 
     // Heavy rows
     uint8_t * GF256_RESTRICT _heavy_matrix;     // Heavy rows of GE matrix
-    int _heavy_pitch;                         // Bytes per heavy matrix row
-    uint16_t _heavy_columns;                  // Number of heavy matrix columns
-    uint16_t _first_heavy_column;             // First heavy column that is non-zero
-    uint16_t _first_heavy_pivot;              // First heavy pivot in the list
+    int _heavy_pitch;                           // Bytes per heavy matrix row
+    uint16_t _heavy_columns;                    // Number of heavy matrix columns
+    uint16_t _first_heavy_column;               // First heavy column that is non-zero
+    uint16_t _first_heavy_pivot;                // First heavy pivot in the list
 
 #if defined(CAT_DUMP_CODEC_DEBUG) || defined(CAT_DUMP_GE_MATRIX)
     void PrintGEMatrix();
@@ -289,6 +289,10 @@ public:
 
     // Reconstruct a single original block from the recovery blocks
     Result ReconstructBlock(uint16_t id, void * GF256_RESTRICT block_out);
+
+    // Transition from decoder to encoder mode
+    // Precondition: DecodeFeed() succeeded with R_WIN
+    Result InitializeEncoderFromDecoder();
 };
 
 

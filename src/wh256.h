@@ -1,5 +1,5 @@
 /*
-    Copyright (c) 2012-2015 Christopher A. Taylor.  All rights reserved.
+    Copyright (c) 2012-2016 Christopher A. Taylor.  All rights reserved.
 
     Redistribution and use in source and binary forms, with or without
     modification, are permitted provided that the following conditions are met:
@@ -109,6 +109,7 @@ extern wh256_state wh256_decoder_init(wh256_state reuse_E, int bytes, int block_
  *
  * Preconditions:
  *    block pointer has block_bytes of space available to store data
+ *    must not call wh256_decoder_read twice with the same packet ID
  *
  * Returns 0 when decoding is complete.
  * Returns non-zero on invalid input or not enough data received yet.
@@ -137,6 +138,18 @@ extern int wh256_decoder_reconstruct(wh256_state E, void* message);
  * May return non-zero to indicate a failure.
  */
 extern int wh256_decoder_reconstruct_block(wh256_state E, unsigned int id, void* block);
+
+/*
+* Convert a decoder wh256_state into an encoder wh256_state after decoding
+* completes.  This enables you to receive a message and then retransmit it
+* without reinitializing the encoder.
+*
+* Preconditions:
+*    wh256_decoder_reconstruct() has returned 0 indicating success
+*
+* May return non-zero to indicate a failure.
+*/
+extern int wh256_decoder_becomes_encoder(wh256_state E);
 
 /*
  * Free memory associated with a state object

@@ -73,7 +73,7 @@ int main()
     Abyssinian prng;
 
     // Simulate file transfers over UDP/IP
-    const int block_bytes = 1000;
+    const int block_bytes = 1007;
     uint8_t block[block_bytes];
 
     prng.Initialize(m_clock.msec(), Clock::cycles());
@@ -159,7 +159,7 @@ int main()
 #endif
 
     // Try each value for N
-    for (int N = 1; N <= 64000; ++N)
+    for (int N = 1024; N <= 64000; ++N)
     {
         int bytes = block_bytes * N;
         uint8_t *message_in = new uint8_t[bytes];

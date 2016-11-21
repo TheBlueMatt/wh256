@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2015 Christopher A. Taylor.  All rights reserved.
+	Copyright (c) 2015-2016 Christopher A. Taylor.  All rights reserved.
 
 	Redistribution and use in source and binary forms, with or without
 	modification, are permitted provided that the following conditions are met:
@@ -112,7 +112,7 @@ static void gf256_muldiv_init()
         m[x] = d[x] = 0;
     }
 
-    // For each other y value,
+    // For each other y value:
     for (int y = 1; y < 256; ++y)
     {
         // Calculate log(y) for mult and 255 - log(y) for div
@@ -362,35 +362,30 @@ extern "C" void gf256_add_mem(void * GF256_RESTRICT vx,
     const uint8_t * GF256_RESTRICT y1 = reinterpret_cast<const uint8_t *>(y16);
 
     // Handle a block of 8 bytes
-    if (bytes >= 8)
+    const int eight = bytes & 8;
+    if (eight)
     {
         uint64_t * GF256_RESTRICT x8 = reinterpret_cast<uint64_t *>(x1);
         const uint64_t * GF256_RESTRICT y8 = reinterpret_cast<const uint64_t *>(y1);
         *x8 ^= *y8;
-
-        x1 += 8;
-        y1 += 8;
-        bytes -= 8;
     }
 
     // Handle a block of 4 bytes
-    if (bytes >= 4)
+    const int four = bytes & 4;
+    if (four)
     {
-        uint32_t * GF256_RESTRICT x4 = reinterpret_cast<uint32_t *>(x1);
-        const uint32_t * GF256_RESTRICT y4 = reinterpret_cast<const uint32_t *>(y1);
+        uint32_t * GF256_RESTRICT x4 = reinterpret_cast<uint32_t *>(x1 + eight);
+        const uint32_t * GF256_RESTRICT y4 = reinterpret_cast<const uint32_t *>(y1 + eight);
         *x4 ^= *y4;
-
-        x1 += 4;
-        y1 += 4;
-        bytes -= 4;
     }
 
     // Handle final bytes
-    switch (bytes)
+    const int offset = eight + four;
+    switch (bytes & 3)
     {
-    case 3: x1[2] ^= y1[2];
-    case 2: x1[1] ^= y1[1];
-    case 1: x1[0] ^= y1[0];
+    case 3: x1[offset + 2] ^= y1[offset + 2];
+    case 2: x1[offset + 1] ^= y1[offset + 1];
+    case 1: x1[offset] ^= y1[offset];
     default:
         break;
     }
@@ -425,39 +420,32 @@ extern "C" void gf256_add2_mem(void * GF256_RESTRICT vz, const void * GF256_REST
     const uint8_t * GF256_RESTRICT y1 = reinterpret_cast<const uint8_t *>(y16);
 
     // Handle a block of 8 bytes
-    if (bytes >= 8)
+    const int eight = bytes & 8;
+    if (eight)
     {
         uint64_t * GF256_RESTRICT z8 = reinterpret_cast<uint64_t *>(z1);
         const uint64_t * GF256_RESTRICT x8 = reinterpret_cast<const uint64_t *>(x1);
         const uint64_t * GF256_RESTRICT y8 = reinterpret_cast<const uint64_t *>(y1);
         *z8 ^= *x8 ^ *y8;
-
-        x1 += 8;
-        y1 += 8;
-        z1 += 8;
-        bytes -= 8;
     }
 
     // Handle a block of 4 bytes
-    if (bytes >= 4)
+    const int four = bytes & 4;
+    if (four)
     {
-        uint32_t * GF256_RESTRICT z4 = reinterpret_cast<uint32_t *>(z1);
-        const uint32_t * GF256_RESTRICT x4 = reinterpret_cast<const uint32_t *>(x1);
-        const uint32_t * GF256_RESTRICT y4 = reinterpret_cast<const uint32_t *>(y1);
+        uint32_t * GF256_RESTRICT z4 = reinterpret_cast<uint32_t *>(z1 + eight);
+        const uint32_t * GF256_RESTRICT x4 = reinterpret_cast<const uint32_t *>(x1 + eight);
+        const uint32_t * GF256_RESTRICT y4 = reinterpret_cast<const uint32_t *>(y1 + eight);
         *z4 ^= *x4 ^ *y4;
-
-        x1 += 4;
-        y1 += 4;
-        z1 += 4;
-        bytes -= 4;
     }
 
     // Handle final bytes
-    switch (bytes)
+    const int offset = eight + four;
+    switch (bytes & 3)
     {
-    case 3: z1[2] ^= x1[2] ^ y1[2];
-    case 2: z1[1] ^= x1[1] ^ y1[1];
-    case 1: z1[0] ^= x1[0] ^ y1[0];
+    case 3: z1[offset + 2] ^= x1[offset + 2] ^ y1[offset + 2];
+    case 2: z1[offset + 1] ^= x1[offset + 1] ^ y1[offset + 1];
+    case 1: z1[offset] ^= x1[offset] ^ y1[offset];
     default:
         break;
     }
@@ -513,39 +501,32 @@ extern "C" void gf256_addset_mem(void * GF256_RESTRICT vz, const void * GF256_RE
     const uint8_t * GF256_RESTRICT y1 = reinterpret_cast<const uint8_t *>(y16);
 
     // Handle a block of 8 bytes
-    if (bytes >= 8)
+    const int eight = bytes & 8;
+    if (eight)
     {
         uint64_t * GF256_RESTRICT z8 = reinterpret_cast<uint64_t *>(z1);
         const uint64_t * GF256_RESTRICT x8 = reinterpret_cast<const uint64_t *>(x1);
         const uint64_t * GF256_RESTRICT y8 = reinterpret_cast<const uint64_t *>(y1);
         *z8 = *x8 ^ *y8;
-
-        x1 += 8;
-        y1 += 8;
-        z1 += 8;
-        bytes -= 8;
     }
 
     // Handle a block of 4 bytes
-    if (bytes >= 4)
+    const int four = bytes & 4;
+    if (four)
     {
-        uint32_t * GF256_RESTRICT z4 = reinterpret_cast<uint32_t *>(z1);
-        const uint32_t * GF256_RESTRICT x4 = reinterpret_cast<const uint32_t *>(x1);
-        const uint32_t * GF256_RESTRICT y4 = reinterpret_cast<const uint32_t *>(y1);
+        uint32_t * GF256_RESTRICT z4 = reinterpret_cast<uint32_t *>(z1 + eight);
+        const uint32_t * GF256_RESTRICT x4 = reinterpret_cast<const uint32_t *>(x1 + eight);
+        const uint32_t * GF256_RESTRICT y4 = reinterpret_cast<const uint32_t *>(y1 + eight);
         *z4 = *x4 ^ *y4;
-
-        x1 += 4;
-        y1 += 4;
-        z1 += 4;
-        bytes -= 4;
     }
 
     // Handle final bytes
-    switch (bytes)
+    const int offset = eight + four;
+    switch (bytes & 3)
     {
-    case 3: z1[2] = x1[2] ^ y1[2];
-    case 2: z1[1] = x1[1] ^ y1[1];
-    case 1: z1[0] = x1[0] ^ y1[0];
+    case 3: z1[offset + 2] = x1[offset + 2] ^ y1[offset + 2];
+    case 2: z1[offset + 1] = x1[offset + 1] ^ y1[offset + 1];
+    case 1: z1[offset] = x1[offset] ^ y1[offset];
     default:
         break;
     }
@@ -593,48 +574,45 @@ extern "C" void gf256_muladd_mem(void * GF256_RESTRICT vz, uint8_t y,
         bytes -= 16;
     }
 
-    uint8_t * GF256_RESTRICT z8 = reinterpret_cast<uint8_t*>(z16);
-    const uint8_t * GF256_RESTRICT x8 = reinterpret_cast<const uint8_t*>(x16);
+    uint8_t * GF256_RESTRICT z1 = reinterpret_cast<uint8_t*>(z16);
+    const uint8_t * GF256_RESTRICT x1 = reinterpret_cast<const uint8_t*>(x16);
     const uint8_t * GF256_RESTRICT table = GF256Ctx.GF256_MUL_TABLE + ((unsigned)y << 8);
 
     // Handle a block of 8 bytes
-    if (bytes >= 8)
+    const int eight = bytes & 8;
+    if (eight)
     {
-        uint64_t word = table[x8[0]];
-        word |= (uint64_t)table[x8[1]] << 8;
-        word |= (uint64_t)table[x8[2]] << 16;
-        word |= (uint64_t)table[x8[3]] << 24;
-        word |= (uint64_t)table[x8[4]] << 32;
-        word |= (uint64_t)table[x8[5]] << 40;
-        word |= (uint64_t)table[x8[6]] << 48;
-        word |= (uint64_t)table[x8[7]] << 56;
-        *(uint64_t*)z8 ^= word;
-
-        x8 += 8;
-        z8 += 8;
-        bytes -= 8;
+        uint64_t * GF256_RESTRICT z8 = reinterpret_cast<uint64_t *>(z1);
+        uint64_t word = table[x1[0]];
+        word |= (uint64_t)table[x1[1]] << 8;
+        word |= (uint64_t)table[x1[2]] << 16;
+        word |= (uint64_t)table[x1[3]] << 24;
+        word |= (uint64_t)table[x1[4]] << 32;
+        word |= (uint64_t)table[x1[5]] << 40;
+        word |= (uint64_t)table[x1[6]] << 48;
+        word |= (uint64_t)table[x1[7]] << 56;
+        *z8 ^= word;
     }
 
     // Handle a block of 4 bytes
-    if (bytes >= 4)
+    const int four = bytes & 4;
+    if (four)
     {
-        uint32_t word = table[x8[0]];
-        word |= (uint32_t)table[x8[1]] << 8;
-        word |= (uint32_t)table[x8[2]] << 16;
-        word |= (uint32_t)table[x8[3]] << 24;
-        *(uint32_t*)z8 ^= word;
-
-        x8 += 4;
-        z8 += 4;
-        bytes -= 4;
+        uint32_t * GF256_RESTRICT z4 = reinterpret_cast<uint32_t *>(z1 + eight);
+        uint32_t word = table[x1[eight]];
+        word |= (uint32_t)table[x1[eight + 1]] << 8;
+        word |= (uint32_t)table[x1[eight + 2]] << 16;
+        word |= (uint32_t)table[x1[eight + 3]] << 24;
+        *z4 ^= word;
     }
 
     // Handle single bytes
-    switch (bytes)
+    const int offset = eight + four;
+    switch (bytes & 3)
     {
-    case 3: z8[2] ^= table[x8[2]];
-    case 2: z8[1] ^= table[x8[1]];
-    case 1: z8[0] ^= table[x8[0]];
+    case 3: z1[offset + 2] ^= table[x1[offset + 2]];
+    case 2: z1[offset + 1] ^= table[x1[offset + 1]];
+    case 1: z1[offset] ^= table[x1[offset]];
     default:
         break;
     }
@@ -679,48 +657,45 @@ extern "C" void gf256_mul_mem(void * GF256_RESTRICT vz, const void * GF256_RESTR
         bytes -= 16;
     }
 
-    uint8_t * GF256_RESTRICT z8 = reinterpret_cast<uint8_t*>(z16);
-    const uint8_t * GF256_RESTRICT x8 = reinterpret_cast<const uint8_t*>(x16);
+    uint8_t * GF256_RESTRICT z1 = reinterpret_cast<uint8_t*>(z16);
+    const uint8_t * GF256_RESTRICT x1 = reinterpret_cast<const uint8_t*>(x16);
     const uint8_t * GF256_RESTRICT table = GF256Ctx.GF256_MUL_TABLE + ((unsigned)y << 8);
 
     // Handle a block of 8 bytes
-    if (bytes >= 8)
+    const int eight = bytes & 8;
+    if (eight)
     {
-        uint64_t word = table[x8[0]];
-        word |= (uint64_t)table[x8[1]] << 8;
-        word |= (uint64_t)table[x8[2]] << 16;
-        word |= (uint64_t)table[x8[3]] << 24;
-        word |= (uint64_t)table[x8[4]] << 32;
-        word |= (uint64_t)table[x8[5]] << 40;
-        word |= (uint64_t)table[x8[6]] << 48;
-        word |= (uint64_t)table[x8[7]] << 56;
-        *(uint64_t*)z8 = word;
-
-        x8 += 8;
-        z8 += 8;
-        bytes -= 8;
+        uint64_t * GF256_RESTRICT z8 = reinterpret_cast<uint64_t *>(z1);
+        uint64_t word = table[x1[0]];
+        word |= (uint64_t)table[x1[1]] << 8;
+        word |= (uint64_t)table[x1[2]] << 16;
+        word |= (uint64_t)table[x1[3]] << 24;
+        word |= (uint64_t)table[x1[4]] << 32;
+        word |= (uint64_t)table[x1[5]] << 40;
+        word |= (uint64_t)table[x1[6]] << 48;
+        word |= (uint64_t)table[x1[7]] << 56;
+        *z8 = word;
     }
 
     // Handle a block of 4 bytes
-    if (bytes >= 4)
+    const int four = bytes & 4;
+    if (four)
     {
-        uint32_t word = table[x8[0]];
-        word |= (uint32_t)table[x8[1]] << 8;
-        word |= (uint32_t)table[x8[2]] << 16;
-        word |= (uint32_t)table[x8[3]] << 24;
-        *(uint32_t*)z8 = word;
-
-        x8 += 4;
-        z8 += 4;
-        bytes -= 4;
+        uint32_t * GF256_RESTRICT z4 = reinterpret_cast<uint32_t *>(z1 + eight);
+        uint32_t word = table[x1[eight]];
+        word |= (uint32_t)table[x1[eight + 1]] << 8;
+        word |= (uint32_t)table[x1[eight + 2]] << 16;
+        word |= (uint32_t)table[x1[eight + 3]] << 24;
+        *z4 = word;
     }
 
     // Handle single bytes
-    switch (bytes)
+    const int offset = eight + four;
+    switch (bytes & 3)
     {
-    case 3: z8[2] = table[x8[2]];
-    case 2: z8[1] = table[x8[1]];
-    case 1: z8[0] = table[x8[0]];
+    case 3: z1[offset + 2] = table[x1[offset + 2]];
+    case 2: z1[offset + 1] = table[x1[offset + 1]];
+    case 1: z1[offset] = table[x1[offset]];
     default:
         break;
     }
@@ -748,7 +723,8 @@ extern "C" void gf256_memswap(void * GF256_RESTRICT vx, void * GF256_RESTRICT vy
     uint8_t * GF256_RESTRICT y1 = reinterpret_cast<uint8_t *>(y16);
 
     // Handle a block of 8 bytes
-    if (bytes >= 8)
+    const int eight = bytes & 8;
+    if (eight)
     {
         uint64_t * GF256_RESTRICT x8 = reinterpret_cast<uint64_t *>(x1);
         uint64_t * GF256_RESTRICT y8 = reinterpret_cast<uint64_t *>(y1);
@@ -756,34 +732,28 @@ extern "C" void gf256_memswap(void * GF256_RESTRICT vx, void * GF256_RESTRICT vy
         uint64_t temp = *x8;
         *x8 = *y8;
         *y8 = temp;
-
-        x1 += 8;
-        y1 += 8;
-        bytes -= 8;
     }
 
     // Handle a block of 4 bytes
-    if (bytes >= 4)
+    const int four = bytes & 4;
+    if (four)
     {
-        uint32_t * GF256_RESTRICT x4 = reinterpret_cast<uint32_t *>(x1);
-        uint32_t * GF256_RESTRICT y4 = reinterpret_cast<uint32_t *>(y1);
+        uint32_t * GF256_RESTRICT x4 = reinterpret_cast<uint32_t *>(x1 + eight);
+        uint32_t * GF256_RESTRICT y4 = reinterpret_cast<uint32_t *>(y1 + eight);
 
         uint32_t temp = *x4;
         *x4 = *y4;
         *y4 = temp;
-
-        x1 += 4;
-        y1 += 4;
-        bytes -= 4;
     }
 
     // Handle final bytes
+    const int offset = eight + four;
     uint8_t temp;
-    switch (bytes)
+    switch (bytes & 3)
     {
-    case 3: temp = x1[2]; x1[2] = y1[2]; y1[2] = temp;
-    case 2: temp = x1[1]; x1[1] = y1[1]; y1[1] = temp;
-    case 1: temp = x1[0]; x1[0] = y1[0]; y1[0] = temp;
+    case 3: temp = x1[offset + 2]; x1[offset + 2] = y1[offset + 2]; y1[offset + 2] = temp;
+    case 2: temp = x1[offset + 1]; x1[offset + 1] = y1[offset + 1]; y1[offset + 1] = temp;
+    case 1: temp = x1[offset]; x1[offset] = y1[offset]; y1[offset] = temp;
     default:
         break;
     }
