@@ -1862,7 +1862,7 @@ void Codec::MultiplyDenseRows()
         const uint16_t * GF256_RESTRICT set_bits = bits;
         const uint16_t * GF256_RESTRICT clr_bits = set_bits + set_count;
 
-        CAT_IF_DUMP( uint64_t disp_row[(CAT_MAX_DENSE_ROWS+63)/64]; CAT_OBJCLR(disp_row); )
+        CAT_IF_DUMP(uint64_t disp_row[(CAT_MAX_DENSE_ROWS + 63) / 64] = {};)
 
         // Generate first row
         memset(temp_row, 0, _ge_pitch * sizeof(uint64_t));
