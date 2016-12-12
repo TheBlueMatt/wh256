@@ -68,7 +68,7 @@ typedef struct cm256_encoder_params_t {
 // Descriptor for data block
 typedef struct cm256_block_t {
     // Pointer to data received.
-    void* Block;
+    void* Data;
 
     // Block index.
     // For original data, it will be in the range
@@ -107,11 +107,11 @@ static inline unsigned char cm256_get_original_block_index(cm256_encoder_params 
  * The output recovery blocks are stored end-to-end in 'recoveryBlocks'.
  * 'recoveryBlocks' should have recoveryCount * blockBytes bytes available.
  *
- * Precondition: originalCount + recoveryCount <= 256
+ * Precondition: OriginalCount + RecoveryCount <= 256
  *
  * When transmitting the data, the block index of the data should be sent,
  * and the recovery block index is also needed.  The decoder should also
- * be provided with the values of originalCount, recoveryCount and blockBytes.
+ * be provided with the values of OriginalCount, RecoveryCount and BlockBytes.
  *
  * Example wire format:
  * [originalCount(1 byte)] [recoveryCount(1 byte)]
@@ -146,20 +146,17 @@ extern void cm256_encode_block(
  * blocks.  There should be 'originalCount' blocks in the provided array.
  * Recovery will always be possible if that many blocks are received.
  *
- * Provide the same values for 'originalCount', 'recoveryCount', and
- * 'blockBytes' used by the encoder.
+ * Provide the same values for 'OriginalCount', 'RecoveryCount', and
+ * 'BlockBytes' used by the encoder.
  *
- * The block Index should be set to the block index of the original data,
- * as described in the cm256_block struct comments above.
- *
- * Recovery blocks will be replaced with original data and the Index
- * will be updated to indicate the original block that was recovered.
+ * After the decoding process succeeds, the blocks will be sorted back into
+ * the original data ordering from index 0...(OriginalCount-1).
  *
  * Returns 0 on success, and any other code indicates failure.
  */
 extern int cm256_decode(
     cm256_encoder_params params, // Encoder parameters
-    cm256_block* blocks);        // Array of 'originalCount' blocks as described above
+    cm256_block* blocks);        // Array of 'OriginalCount' blocks as described above
 
 
 #ifdef __cplusplus

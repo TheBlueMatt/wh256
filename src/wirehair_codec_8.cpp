@@ -556,7 +556,7 @@ static uint16_t NextPrime16(uint16_t n)
 static const uint8_t INVERTIBLE_MATRIX_SEEDS[512] = {
     0x0,0,2,2,10,5,6,1,2,0,0,3,5,0,0,1,0,0,0,3,0,1,2,3,0,1,6,6,1,6,0,0,
     0,4,2,7,0,2,4,2,1,1,0,0,2,12,11,3,3,3,2,1,1,4,4,1,13,2,2,1,3,2,1,1,
-    3,1,0,0,1,0,0,10,8,6,0,7,3,0,1,1,0,2,6,3,2,2,1,0,5,2,5,1,1,2,4,1,
+    3,1,0,0,1,0,2,10,8,6,0,7,3,0,1,1,0,2,6,3,2,2,1,0,5,2,5,1,1,2,4,1,
     2,1,0,0,0,2,0,5,9,17,5,1,2,2,5,4,4,4,4,4,1,2,2,2,1,0,1,0,3,2,2,0,
     1,4,1,3,1,17,3,0,0,0,0,2,2,0,0,0,1,11,4,2,4,2,1,8,2,1,1,2,6,3,0,4,
     3,10,5,3,3,1,0,1,2,6,10,10,6,0,0,0,0,0,0,1,4,2,1,2,2,12,2,2,4,0,0,2,
@@ -581,7 +581,8 @@ static bool AddInvertibleGF2Matrix(uint64_t * GF256_RESTRICT matrix, int offset,
     {
         // Pull a random matrix out of the lookup table
         Abyssinian prng;
-        prng.Initialize(INVERTIBLE_MATRIX_SEEDS[n]);
+        const uint8_t seed = INVERTIBLE_MATRIX_SEEDS[n];
+        prng.Initialize(seed);
 
         // If shift is friendly,
         uint32_t shift = offset & 63;
@@ -1839,7 +1840,7 @@ void Codec::MultiplyDenseRows()
     Abyssinian prng;
     prng.Initialize(_d_seed);
 
-    // For each block of columns,
+    // For each block of columns:
     PeelColumn * GF256_RESTRICT column = _peel_cols;
     uint64_t * GF256_RESTRICT temp_row = _ge_matrix + _ge_pitch * (_dense_count + _defer_count);
     const int dense_count = _dense_count;
@@ -1868,7 +1869,7 @@ void Codec::MultiplyDenseRows()
         memset(temp_row, 0, _ge_pitch * sizeof(uint64_t));
         for (int ii = 0; ii < set_count; ++ii)
         {
-            // If bit is peeled,
+            // If bit is peeled:
             int bit_i = set_bits[ii];
             if (bit_i < max_x)
             {
@@ -2265,7 +2266,7 @@ bool Codec::TriangleNonHeavy()
     const uint16_t pivot_count = _pivot_count;
     const uint16_t first_heavy_column = _first_heavy_column;
 
-    // For the columns that are not protected by heavy rows,
+    // For the columns that are not protected by heavy rows:
     uint16_t pivot_i = _next_pivot;
     uint64_t ge_mask = (uint64_t)1 << (pivot_i & 63);
     for (; pivot_i < first_heavy_column; ++pivot_i)
@@ -2274,14 +2275,14 @@ bool Codec::TriangleNonHeavy()
 
         bool found = false;
 
-        // For each remaining GE row that might be the pivot,
+        // For each remaining GE row that might be the pivot:
         uint64_t * GF256_RESTRICT ge_matrix_offset = _ge_matrix + word_offset;
         for (uint16_t pivot_j = pivot_i; pivot_j < pivot_count; ++pivot_j)
         {
             // Determine if the row contains the bit we want
             uint16_t ge_row_j = _pivots[pivot_j];
 
-            // If the bit was not found,
+            // If the bit was not found:
             uint64_t * GF256_RESTRICT ge_row = &ge_matrix_offset[_ge_pitch * ge_row_j];
             if (!(*ge_row & ge_mask))
             {
@@ -2299,14 +2300,14 @@ bool Codec::TriangleNonHeavy()
             // Prepare masked first word
             uint64_t row0 = (*ge_row & ~(ge_mask - 1)) ^ ge_mask;
 
-            // For each remaining unused row,
+            // For each remaining unused row:
             for (uint16_t pivot_k = pivot_j + 1; pivot_k < pivot_count; ++pivot_k)
             {
                 // Determine if the row contains the bit we want
                 uint16_t ge_row_k = _pivots[pivot_k];
                 uint64_t * GF256_RESTRICT rem_row = &ge_matrix_offset[_ge_pitch * ge_row_k];
 
-                // If the bit was found,
+                // If the bit was found:
                 if (*rem_row & ge_mask)
                 {
                     // Unroll first word to handle masked word and for speed
@@ -2323,7 +2324,7 @@ bool Codec::TriangleNonHeavy()
             break;
         }
 
-        // If pivot could not be found,
+        // If pivot could not be found:
         if (!found)
         {
             _next_pivot = pivot_i;
@@ -2352,7 +2353,7 @@ bool Codec::TriangleNonHeavy()
     The only wrinkle here is that instead of zeroing the columns as
     it goes, this algorithm will keep a record of which columns were
     added together so that these steps can be followed later to
-    produce the column values.  Note that memxor() is not used here.
+    produce the column values with xors on the data.
 
         It uses a pivot array that it swaps row pointers around in, as
     opposed to actually swapping rows in the matrix, which would be
@@ -2387,7 +2388,7 @@ bool Codec::Triangle()
 
     const uint16_t first_heavy_column = _first_heavy_column;
 
-    // If next pivot is not heavy,
+    // If next pivot is not heavy:
     if (_next_pivot < first_heavy_column && !TriangleNonHeavy())
     {
         return false;
@@ -2398,21 +2399,21 @@ bool Codec::Triangle()
     const uint16_t first_heavy_row = _defer_count + _dense_count;
     uint16_t first_heavy_pivot = _first_heavy_pivot;
 
-    // For each heavy pivot to determine,
+    // For each heavy pivot to determine:
     uint64_t ge_mask = (uint64_t)1 << (_next_pivot & 63);
     for (uint16_t pivot_i = _next_pivot; pivot_i < column_count;
         ++pivot_i, ge_mask = CAT_ROL64(ge_mask, 1))
     {
         const uint16_t heavy_col_i = pivot_i - first_heavy_column;
 
-        // For each remaining GE row that might be the pivot,
+        // For each remaining GE row that might be the pivot:
         int word_offset = pivot_i >> 6;
         uint64_t * GF256_RESTRICT ge_matrix_offset = _ge_matrix + word_offset;
         bool found = false;
         uint16_t pivot_j;
         for (pivot_j = pivot_i; pivot_j < first_heavy_pivot; ++pivot_j)
         {
-            // If the bit was not found,
+            // If the bit was not found:
             uint16_t ge_row_j = _pivots[pivot_j];
             uint64_t * GF256_RESTRICT ge_row = &ge_matrix_offset[_ge_pitch * ge_row_j];
             if (!(*ge_row & ge_mask))
@@ -2431,7 +2432,7 @@ bool Codec::Triangle()
             // Prepare masked first word
             uint64_t row0 = (*ge_row & ~(ge_mask - 1)) ^ ge_mask;
 
-            // For each remaining light row,
+            // For each remaining light row:
             uint16_t pivot_k = pivot_j + 1;
             for (; pivot_k < first_heavy_pivot; ++pivot_k)
             {
@@ -2439,7 +2440,7 @@ bool Codec::Triangle()
                 uint16_t ge_row_k = _pivots[pivot_k];
                 uint64_t * GF256_RESTRICT rem_row = &ge_matrix_offset[_ge_pitch * ge_row_k];
 
-                // If the bit was found,
+                // If the bit was found:
                 if (*rem_row & ge_mask)
                 {
                     // Unroll first word to handle masked word and for speed
@@ -2453,10 +2454,10 @@ bool Codec::Triangle()
                 }
             } // next remaining row
 
-            // For each remaining heavy row,
+            // For each remaining heavy row:
             for (; pivot_k < pivot_count; ++pivot_k)
             {
-                // If the column is non-zero,
+                // If the column is non-zero:
                 uint16_t heavy_row_k = _pivots[pivot_k] - first_heavy_row;
                 uint8_t * GF256_RESTRICT rem_row = &_heavy_matrix[_heavy_pitch * heavy_row_k];
                 uint8_t code_value = rem_row[heavy_col_i];
@@ -2511,7 +2512,7 @@ bool Codec::Triangle()
                         ge_column_i = pivot_i + (4 - odd_count);
                 }
 
-                // For remaining aligned columns,
+                // For remaining aligned columns:
                 uint32_t * GF256_RESTRICT word = reinterpret_cast<uint32_t*>( rem_row + ge_column_i - first_heavy_column );
                 for (; ge_column_i < column_count; ge_column_i += 4, ++word)
                 {
@@ -2534,11 +2535,11 @@ bool Codec::Triangle()
             break;
         } // next row
 
-        // If not found, then for each remaining heavy pivot,
+        // If not found, then for each remaining heavy pivot:
         // NOTE: The pivot array maintains the heavy rows at the end so that they are always tried last
         if (!found) for (; pivot_j < _pivot_count; ++pivot_j)
         {
-            // If heavy row doesn't have the pivot,
+            // If heavy row doesn't have the pivot:
             uint16_t ge_row_j = _pivots[pivot_j];
             uint16_t heavy_row_j = ge_row_j - first_heavy_row;
             uint8_t * GF256_RESTRICT pivot_row = &_heavy_matrix[_heavy_pitch * heavy_row_j];
@@ -2556,7 +2557,7 @@ bool Codec::Triangle()
             _pivots[pivot_j] = _pivots[pivot_i];
             _pivots[pivot_i] = ge_row_j;
 
-            // If a non-heavy pivot just got moved into heavy pivot list,
+            // If a non-heavy pivot just got moved into heavy pivot list:
             if (pivot_i < first_heavy_pivot)
             {
                 // Swap pivot j with first heavy pivot
@@ -2568,19 +2569,20 @@ bool Codec::Triangle()
                 ++first_heavy_pivot;
             }
 
-            // If there are any remaining rows,
+            // If there are any remaining rows:
             uint16_t pivot_k = pivot_j + 1;
             if (pivot_k < pivot_count)
             {
-                // For each remaining unused row,
+                // For each remaining unused row:
                 // NOTE: All remaining rows are heavy rows by pivot array organization
                 for (; pivot_k < pivot_count; ++pivot_k)
                 {
-                    // If the column is zero,
                     uint16_t ge_row_k = _pivots[pivot_k];
                     uint16_t heavy_row_k = ge_row_k - first_heavy_row;
                     uint8_t * GF256_RESTRICT rem_row = &_heavy_matrix[_heavy_pitch * heavy_row_k];
                     uint8_t rem_value = rem_row[heavy_col_i];
+
+                    // If the column is zero:
                     if (!rem_value)
                     {
                         continue; // Skip it
@@ -2601,7 +2603,7 @@ bool Codec::Triangle()
             break;
         } // next heavy row
 
-        // If pivot could not be found,
+        // If pivot could not be found:
         if (!found)
         {
             _next_pivot = pivot_i;
@@ -4084,7 +4086,7 @@ void Codec::Substitute()
 
 static const uint16_t DENSE_SEEDS[119] = {
     4181, 26667, 4504, 11009, 3438, 14320, 15822, 50870,
-    4234, 1376, 30232, 1177, 8576, 3099, 8178, 52837,
+    4234, 1376, 30232, 1177, 8576, 3099, 1256, 52837,
     773, 5032, 10746, 11964, 1005, 1568, 12581, 2820,
     289, 2, 4322, 4097, 481, 1383, 3765, 166,
     3286, 2605, 3101, 851, 465, 1127, 1548, 1771,
@@ -4123,7 +4125,7 @@ static const uint16_t SMALL_PEEL_SEEDS[262] = {
 
 // 8KB bitfield table for seeds that cause the encoder to choke
 static const uint64_t EXCEPT_TABLE[1000] = {
-    // TODO: We need to run this for 64K values of N...
+    // FIXME: We need to run this for 64K values of N...
 };
 
 
@@ -4200,7 +4202,7 @@ Result Codec::ChooseMatrix(int message_bytes, int block_bytes)
     else if (_block_count <= 4096) // Medium N:
     {
         // Square root-dominant region
-        dense_count = 11 + SquareRoot16(_block_count) + (uint16_t)(_block_count / 300);
+        dense_count = 18 + SquareRoot16(_block_count) + (uint16_t)(_block_count / 300);
     }
     else if (_block_count <= 32768)
     {
@@ -4247,6 +4249,7 @@ Result Codec::ChooseMatrix(int message_bytes, int block_bytes)
             return R_BAD_DENSE_SEED;
 
         // Lookup dense seed given D
+        // FIXME: Dense seed for dense_count = 70 is terrible
         _d_seed = DENSE_SEEDS[(dense_count - 14) / 4];
     }
 
@@ -4276,6 +4279,7 @@ Result Codec::ChooseMatrix(int message_bytes, int block_bytes)
         if (EXCEPT_TABLE[_block_count >> 6] & ((uint64_t)1 << (_block_count & 63)))
         {
 #if 0
+            // FIXME: Identify these too
             switch (_block_count)
             {
             case 3046:
@@ -4627,11 +4631,12 @@ Result Codec::ResumeSolveMatrix(uint32_t id, const void *block)
     }
     else
     {
-        // For each heavy column,
         const uint16_t column_count = _defer_count + _mix_count;
         const uint16_t first_heavy_row = _dense_count + _defer_count;
         uint16_t heavy_row_i = ge_row_i - first_heavy_row;
         uint8_t * GF256_RESTRICT heavy_row = _heavy_matrix + _heavy_pitch * heavy_row_i;
+
+        // For each heavy column:
         for (uint16_t ge_column_j = _first_heavy_column; ge_column_j < column_count; ++ge_column_j)
         {
             uint16_t heavy_col_j = ge_column_j - _first_heavy_column;
@@ -4659,6 +4664,8 @@ Result Codec::ResumeSolveMatrix(uint32_t id, const void *block)
                 uint8_t * GF256_RESTRICT pivot_row = _heavy_matrix + _heavy_pitch * heavy_row_j;
                 uint8_t pivot_code = pivot_row[heavy_col_j];
                 const uint16_t start_column = heavy_col_j + 1;
+
+                // heavy[m+] += exist[m+] * (code_value / pivot_code)
                 if (pivot_code == 1)
                 {
                     // heavy[m+] += exist[m+] * code_value
@@ -4666,6 +4673,7 @@ Result Codec::ResumeSolveMatrix(uint32_t id, const void *block)
                 }
                 else
                 {
+                    // eliminator = code_value / pivot_code
                     uint8_t eliminator = gf256_div(code_value, pivot_code);
 
                     // Store eliminator for later
@@ -4677,10 +4685,11 @@ Result Codec::ResumeSolveMatrix(uint32_t id, const void *block)
             }
             else
             {
-                // For each remaining column:
                 uint64_t * GF256_RESTRICT other_row = _ge_matrix + _ge_pitch * ge_row_j;
                 uint16_t ge_column_k = pivot_j + 1;
                 uint64_t ge_mask = (uint64_t)1 << (ge_column_k & 63);
+
+                // For each remaining column:
                 for (; ge_column_k < column_count; ++ge_column_k, ge_mask = CAT_ROL64(ge_mask, 1))
                 {
                     // If bit is set:
@@ -4781,7 +4790,8 @@ bool Codec::IsAllOriginalData()
     Precondition: DecodeFeed() has returned success
 */
 
-Result Codec::ReconstructBlock(uint16_t row_i, void * GF256_RESTRICT dest) {
+Result Codec::ReconstructBlock(uint16_t row_i, void * GF256_RESTRICT dest)
+{
     CAT_IF_DUMP(cout << endl << "---- ReconstructBlock ----" << endl << endl;)
 
     // Validate input
@@ -5369,6 +5379,7 @@ Result Codec::InitializeEncoder(int message_bytes, int block_bytes)
         _input_final_bytes = partial_final_bytes;
         _output_final_bytes = _block_bytes;
         _extra_count = 0;
+        _encoder_was_decoder = false;
 
         if (!AllocateWorkspace())
             r = R_OUT_OF_MEMORY;
@@ -5445,7 +5456,8 @@ uint32_t Codec::Encode(uint32_t id, void *block_out)
 
 #if defined(CAT_COPY_FIRST_N)
     // For the message blocks:
-    if (id < _block_count)
+    // Note that if the encoder was a decoder the original message blocks are unavailable
+    if (id < _block_count && !_encoder_was_decoder)
     {
         // Until the final block in message blocks:
         const uint8_t * GF256_RESTRICT src = _input_blocks + _block_bytes * id;
@@ -5510,12 +5522,14 @@ uint32_t Codec::Encode(uint32_t id, void *block_out)
     // Add in remaining 2 mixer columns:
 
     IterateNextColumn(mix_x, _mix_count, _mix_next_prime, mix_a);
-    gf256_add_mem(block, _recovery_blocks + _block_bytes * (_block_count + mix_x), _block_bytes);
+    const uint8_t * mix0_src = _recovery_blocks + _block_bytes * (_block_count + mix_x);
     CAT_IF_DUMP(cout << " " << (_block_count + mix_x);)
 
     IterateNextColumn(mix_x, _mix_count, _mix_next_prime, mix_a);
-    gf256_add_mem(block, _recovery_blocks + _block_bytes * (_block_count + mix_x), _block_bytes);
+    const uint8_t * mix1_src = _recovery_blocks + _block_bytes * (_block_count + mix_x);
     CAT_IF_DUMP(cout << " " << (_block_count + mix_x);)
+
+    gf256_add2_mem(block, mix0_src, mix1_src, _block_bytes);
 
     CAT_IF_DUMP(cout << endl;)
 
@@ -5549,6 +5563,7 @@ Result Codec::InitializeDecoder(int message_bytes, int block_bytes)
 #if defined(CAT_ALL_ORIGINAL)
         _all_original = true;
 #endif
+        _encoder_was_decoder = true;
 
         if (!AllocateInput() || !AllocateWorkspace())
         {
@@ -5561,15 +5576,6 @@ Result Codec::InitializeDecoder(int message_bytes, int block_bytes)
 
 Result Codec::InitializeEncoderFromDecoder()
 {
-    // If decoder mode still has the final_bytes hack in place, swap it back
-    if (_input_final_bytes > _output_final_bytes)
-    {
-        // Swap input/output final bytes
-        int temp = _output_final_bytes;
-        _output_final_bytes = _input_final_bytes;
-        _input_final_bytes = temp;
-    }
-
 #if defined(CAT_ALL_ORIGINAL)
     // If all original data, return success (common case)
     if (_all_original && IsAllOriginalData())
@@ -5579,6 +5585,15 @@ Result Codec::InitializeEncoderFromDecoder()
         return R_ERROR;
     }
 #endif
+
+    // If decoder mode still has the final_bytes hack in place, swap it back
+    if (_input_final_bytes > _output_final_bytes)
+    {
+        // Swap input/output final bytes
+        int temp = _output_final_bytes;
+        _output_final_bytes = _input_final_bytes;
+        _input_final_bytes = temp;
+    }
 
     return R_WIN;
 }
@@ -5619,7 +5634,7 @@ Result Codec::DecodeFeed(uint32_t id, const void * block_in)
             // If this is the last block id:
             if (id == _block_count - 1)
             {
-                uint32_t final_bytes = _output_final_bytes;
+                const uint32_t final_bytes = _output_final_bytes;
 
                 // Copy the new row data into the input block area
                 memcpy(block_store, block_in, final_bytes);

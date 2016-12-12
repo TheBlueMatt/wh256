@@ -33,7 +33,7 @@
 extern "C" {
 #endif
 
-#define WH256_VERSION 4
+#define WH256_VERSION 5
 
 /*
  * Verify binary compatibility with the API on startup.
@@ -68,7 +68,7 @@ typedef void* wh256_state;
  *     N <= 64000
  *
  * Returns a valid state object on success.
- * Returns 0 on failure.
+ * Returns nullptr(0) on failure.
  */
 extern wh256_state wh256_encoder_init(wh256_state reuse_E, const void* message, int bytes, int block_bytes);
 
@@ -84,12 +84,12 @@ extern int wh256_count(wh256_state E);
  * used to run the encoder in parallel with normal data transmission.
  *
  * Preconditions:
- *    block pointer has block_bytes of space available to store data
+ *    Block pointer has block_bytes of space available to store data
  *
- * Returns 0 on success.
- * Returns non-zero on invalid input.
+ * Returns 0 on success and sets bytes_written to the number of bytes written.
+ * Returns non-zero on invalid input and bytes_written is set to 0.
  */
-extern int wh256_encoder_write(wh256_state E, unsigned int id, void* block);
+extern int wh256_encoder_write(wh256_state E, unsigned int id, void* block, int* bytes_written);
 
 /*
  * Initialize a decoder for a message of size bytes with block_bytes bytes
@@ -98,7 +98,7 @@ extern int wh256_encoder_write(wh256_state E, unsigned int id, void* block);
  * Pass 0 for reuse_E if you do not want to reuse a state object.
  *
  * Returns a valid state object on success.
- * Returns 0 on failure.
+ * Returns nullptr(0) on failure.
  */
 extern wh256_state wh256_decoder_init(wh256_state reuse_E, int bytes, int block_bytes);
 
@@ -108,8 +108,8 @@ extern wh256_state wh256_decoder_init(wh256_state reuse_E, int bytes, int block_
  * This function will return non-zero when reading is complete.
  *
  * Preconditions:
- *    block pointer has block_bytes of space available to store data
- *    must not call wh256_decoder_read twice with the same packet ID
+ *    Block pointer has block_bytes of space available to store data
+ *    Must not call wh256_decoder_read twice with the same packet ID
  *
  * Returns 0 when decoding is complete.
  * Returns non-zero on invalid input or not enough data received yet.
@@ -120,7 +120,7 @@ extern int wh256_decoder_read(wh256_state E, unsigned int id, const void* block)
  * Reconstruct the message after reading is complete.
  *
  * Preconditions:
- *    message contains enough space to store the entire decoded message (bytes)
+ *    Message contains enough space to store the entire decoded message (bytes)
  *
  * May return non-zero to indicate a failure.
  */
@@ -133,7 +133,7 @@ extern int wh256_decoder_reconstruct(wh256_state E, void* message);
  * rather than for file transfer.
  *
  * Preconditions:
- *    block ptr buffer contains enough space to hold the block (block_bytes)
+ *    Block ptr buffer contains enough space to hold the block (block_bytes)
  *
  * May return non-zero to indicate a failure.
  */

@@ -70,26 +70,23 @@ struct CodecState
     cm256_encoder_params EncoderParams;
     const uint8_t* OriginalMessage;
     cm256_block_t Blocks[256];
-    uint8_t* LastBlock;
     int BlocksReceived;
     int LastBlockSize;
 
+    // Space allocated for the last block during encoding
+    uint8_t* LastBlock;
+
+    // Space allocated to store block data during decoding
+    uint8_t* BlockWorkspace;
+
     void ResetCM256()
     {
-        // In encoder mode,
-        if (OriginalMessage)
-        {
-            delete[] LastBlock;
-            LastBlock = nullptr;
-        }
-        else
-        {
-            for (int i = 0; i < 256; ++i)
-            {
-                delete[] (uint8_t*)Blocks[i].Block;
-                Blocks[i].Block = nullptr;
-            }
-        }
+        delete[] LastBlock;
+        LastBlock = nullptr;
+
+        delete[] BlockWorkspace;
+        BlockWorkspace = nullptr;
+
         BlocksReceived = 0;
         LastBlockSize = 0;
     }
@@ -99,13 +96,15 @@ struct CodecState
         UsingWirehair = false;
         for (int i = 0; i < 256; ++i)
         {
-            Blocks[i].Block = nullptr;
+            Blocks[i].Data = nullptr;
         }
         WirehairCodec = nullptr;
-        LastBlock = nullptr;
         OriginalMessage = nullptr;
         BlocksReceived = 0;
         LastBlockSize = 0;
+
+        LastBlock = nullptr;
+        BlockWorkspace = nullptr;
     }
     ~CodecState()
     {
@@ -121,7 +120,7 @@ wh256_state wh256_encoder_init(wh256_state reuse_E, const void* message, int byt
     // If input is invalid:
     if (!m_init || !message || bytes < 1 || block_bytes < 1)
     {
-        return 0;
+        return nullptr;
     }
 
     CodecState* codec = reinterpret_cast<CodecState*>(reuse_E);
@@ -146,24 +145,32 @@ wh256_state wh256_encoder_init(wh256_state reuse_E, const void* message, int byt
         codec->EncoderParams.BlockBytes = block_bytes;
 
         const uint8_t* block = codec->OriginalMessage;
-        for (int i = 0; i < N - 1; ++i, block += block_bytes)
+        for (int i = 0; i < N; ++i, block += block_bytes)
         {
-            codec->Blocks[i].Block = (void*)block;
+            codec->Blocks[i].Data = (void*)block;
         }
 
-        delete[] codec->LastBlock;
-        codec->LastBlock = new uint8_t[block_bytes];
+        // Note: The CM256 codec assumes the input blocks are all the same
+        // length so sometimes we must pad the final input block with zeroes
+        // out to the block length.
 
-        int remainder = bytes % block_bytes;
-        if (remainder <= 0)
+        // If there is no need to pad out the last block:
+        codec->LastBlockSize = bytes - N * block_bytes;
+        if (codec->LastBlockSize <= 0)
         {
-            remainder = block_bytes;
+            codec->LastBlockSize = block_bytes;
         }
+        else
+        {
+            assert(!codec->LastBlock); // Should have been cleared by ResetCM256()
+            codec->LastBlock = new uint8_t[block_bytes];
 
-        memcpy(codec->LastBlock, block, remainder);
-        memset(codec->LastBlock + remainder, 0, block_bytes - remainder);
+            // Copy the original data into the LastBlock workspace and pad it with zeroes
+            memcpy(codec->LastBlock, block, codec->LastBlockSize);
+            memset(codec->LastBlock + codec->LastBlockSize, 0, block_bytes - codec->LastBlockSize);
 
-        codec->Blocks[N - 1].Block = codec->LastBlock;
+            codec->Blocks[N - 1].Data = codec->LastBlock;
+        }
     }
     else
     {
@@ -184,9 +191,8 @@ wh256_state wh256_encoder_init(wh256_state reuse_E, const void* message, int byt
         // On failure:
         if (r != wirehair::R_WIN)
         {
-            assert(false);
             delete codec;
-            codec = 0;
+            codec = nullptr;
         }
     }
 
@@ -198,7 +204,7 @@ int wh256_count(wh256_state E)
     // If input is invalid:
     if (!E)
     {
-        return 0;
+        return -1;
     }
 
     CodecState* codec = reinterpret_cast<CodecState*>(E);
@@ -213,35 +219,62 @@ int wh256_count(wh256_state E)
     }
 }
 
-int wh256_encoder_write(wh256_state E, unsigned int id, void* block)
+static inline int WH256IndexToCM256Index(const cm256_encoder_params& params, int wh256Index)
 {
+    if (wh256Index < params.OriginalCount)
+        return wh256Index;
+
+    const unsigned int recoveryCount = (unsigned int)params.RecoveryCount;
+
+    // Cycle through the available recovery blocks
+    unsigned int recoveryIndex = wh256Index - params.OriginalCount;
+    if (recoveryIndex >= recoveryCount)
+        recoveryIndex %= recoveryCount; // Uncommon
+
+    return recoveryIndex + params.OriginalCount;
+}
+
+int wh256_encoder_write(wh256_state E, unsigned int id, void* block, int* bytes_written)
+{
+    // Initialize bytes written to zero:
+    if (!bytes_written)
+        return -1;
+    *bytes_written = 0;
+
     // If input is invalid:
     if (!E || !block)
     {
-        return 0;
+        return -1;
     }
 
     CodecState* codec = reinterpret_cast<CodecState*>(E);
 
     if (codec->UsingWirehair)
     {
-        // FIXME: For the final block the wirehair codec will copy partial data
-        return codec->WirehairCodec->Encode(id, block) > 0 ? 0 : -1;
-    }
+        const uint32_t wh_written = codec->WirehairCodec->Encode(id, block);
+        if (wh_written <= 0)
+            return -2;
 
-    // CM256:
-    if (id < static_cast<unsigned int>(codec->EncoderParams.OriginalCount))
-    {
-        memcpy(block, codec->Blocks[id].Block, codec->EncoderParams.BlockBytes);
+        *bytes_written = (int)wh_written;
     }
     else
     {
-        if (id >= static_cast<unsigned int>(codec->EncoderParams.OriginalCount))
+        int written = codec->EncoderParams.BlockBytes;
+        if (id < static_cast<unsigned int>(codec->EncoderParams.OriginalCount))
         {
-            id = ((id - codec->EncoderParams.OriginalCount) % codec->EncoderParams.RecoveryCount) + codec->EncoderParams.OriginalCount;
+            if (id == static_cast<unsigned int>(codec->EncoderParams.OriginalCount - 1))
+                written = codec->LastBlockSize;
+
+            memcpy(block, codec->Blocks[id].Data, written);
+        }
+        else
+        {
+            id = WH256IndexToCM256Index(codec->EncoderParams, id);
+
+            cm256_encode_block(codec->EncoderParams, codec->Blocks, id, block);
         }
 
-        cm256_encode_block(codec->EncoderParams, codec->Blocks, id, block);
+        *bytes_written = written;
     }
 
     return 0;
@@ -252,7 +285,7 @@ wh256_state wh256_decoder_init(wh256_state reuse_E, int bytes, int block_bytes)
     // If input is invalid:
     if (bytes < 1 || block_bytes < 1)
     {
-        return 0;
+        return nullptr;
     }
 
     CodecState* codec = reinterpret_cast<CodecState*>(reuse_E);
@@ -281,13 +314,12 @@ wh256_state wh256_decoder_init(wh256_state reuse_E, int bytes, int block_bytes)
         {
             assert(false);
             delete codec;
-            codec = 0;
+            codec = nullptr;
         }
     }
     else
     {
         codec->ResetCM256();
-
         codec->OriginalMessage = nullptr;
 
         codec->EncoderParams.BlockBytes = block_bytes;
@@ -300,9 +332,11 @@ wh256_state wh256_decoder_init(wh256_state reuse_E, int bytes, int block_bytes)
             codec->LastBlockSize = block_bytes;
         }
 
-        for (int i = 0; i < N; ++i)
+        assert(!codec->BlockWorkspace); // Should have been cleared by ResetCM256()
+        uint8_t* workspace = codec->BlockWorkspace = new uint8_t[N * block_bytes];
+        for (int i = 0; i < N; ++i, workspace += block_bytes)
         {
-            codec->Blocks[i].Block = new uint8_t[block_bytes];
+            codec->Blocks[i].Data = workspace;
         }
     }
 
@@ -314,7 +348,7 @@ int wh256_decoder_read(wh256_state E, unsigned int id, const void *block)
     // If input is invalid:
     if (!E || !block)
     {
-        return 0;
+        return -1;
     }
 
     CodecState* codec = reinterpret_cast<CodecState*>(E);
@@ -326,22 +360,25 @@ int wh256_decoder_read(wh256_state E, unsigned int id, const void *block)
             return 0;
         }
 
-        return -1;
+        return -2;
     }
 
-    if (id >= static_cast<unsigned int>(codec->EncoderParams.OriginalCount))
-    {
-        // Cycle through the available recovery blocks
-        unsigned int recoveryIndex = id - codec->EncoderParams.OriginalCount;
-        if (recoveryIndex >= (unsigned int)codec->EncoderParams.RecoveryCount)
-        {
-            recoveryIndex %= codec->EncoderParams.RecoveryCount; // Uncommon
-        }
-        id = codec->EncoderParams.OriginalCount + recoveryIndex;
-    }
+    id = WH256IndexToCM256Index(codec->EncoderParams, id);
 
     codec->Blocks[codec->BlocksReceived].Index = id;
-    memcpy(codec->Blocks[codec->BlocksReceived].Block, block, codec->EncoderParams.BlockBytes);
+
+    uint8_t* dest = reinterpret_cast<uint8_t*>(codec->Blocks[codec->BlocksReceived].Data);
+
+    if (id == codec->EncoderParams.OriginalCount - 1)
+    {
+        // Copy partial last block and pad with zeroes
+        memcpy(dest, block, codec->LastBlockSize);
+        memset(dest + codec->LastBlockSize, 0, codec->EncoderParams.BlockBytes - codec->LastBlockSize);
+    }
+    else
+    {
+        memcpy(dest, block, codec->EncoderParams.BlockBytes);
+    }
 
     if (++codec->BlocksReceived == codec->EncoderParams.OriginalCount)
     {
@@ -351,12 +388,13 @@ int wh256_decoder_read(wh256_state E, unsigned int id, const void *block)
         }
         else
         {
+            // Perhaps invalid input; dump it all and start over
             assert(false);
             codec->BlocksReceived = 0;
         }
     }
 
-    return -1;
+    return -3;
 }
 
 int wh256_decoder_reconstruct(wh256_state E, void *message)
@@ -376,41 +414,45 @@ int wh256_decoder_reconstruct(wh256_state E, void *message)
             return 0;
         }
 
-        return -1;
+        return -2; // Decoding hasn't completed yet
     }
 
     if (codec->BlocksReceived < codec->EncoderParams.OriginalCount)
     {
-        return -1;
+        return -3; // Decoding hasn't completed yet
     }
 
-    uint8_t* blocksOut = reinterpret_cast<uint8_t*>(message);
-    for (int i = 0; i < codec->EncoderParams.OriginalCount; ++i)
+    uint8_t* blockOut = reinterpret_cast<uint8_t*>(message);
+    int copySizeBytes = codec->EncoderParams.BlockBytes;
+
+    // For each original block to copy:
+    for (int i = 0; i < codec->EncoderParams.OriginalCount; ++i, blockOut += codec->EncoderParams.BlockBytes)
     {
+        // Block indices after cm256 decoding completes should be in order
         int index = codec->Blocks[i].Index;
-        if (index >= codec->EncoderParams.OriginalCount)
+        if (index != i)
         {
             assert(false);
-            return -1;
+            return -4; // Software bug?
         }
 
+        // The last block can be smaller than the rest
         if (index == codec->EncoderParams.OriginalCount - 1)
         {
-            memcpy(blocksOut + index * codec->EncoderParams.BlockBytes, codec->Blocks[i].Block, codec->LastBlockSize);
+            copySizeBytes = codec->LastBlockSize;
         }
-        else
-        {
-            memcpy(blocksOut + index * codec->EncoderParams.BlockBytes, codec->Blocks[i].Block, codec->EncoderParams.BlockBytes);
-        }
+
+        const void* src = codec->Blocks[i].Data;
+        memcpy(blockOut, src, copySizeBytes);
     }
 
     return 0;
 }
 
-int wh256_decoder_reconstruct_block(wh256_state E, unsigned int id, void *block)
+int wh256_decoder_reconstruct_block(wh256_state E, unsigned int id, void *blockOut)
 {
     // If input is invalid:
-    if (!E || !block)
+    if (!E || !blockOut)
     {
         return -1;
     }
@@ -419,39 +461,41 @@ int wh256_decoder_reconstruct_block(wh256_state E, unsigned int id, void *block)
 
     if (codec->UsingWirehair)
     {
-        if (wirehair::R_WIN == codec->WirehairCodec->ReconstructBlock(id, block))
+        if (wirehair::R_WIN == codec->WirehairCodec->ReconstructBlock(id, blockOut))
         {
             return 0;
         }
 
-        return -1;
+        return -2;
     }
 
+    // Verify that the cm256 decoder has finished
     if (codec->BlocksReceived < codec->EncoderParams.OriginalCount)
     {
-        return -1;
+        return -3; // Called before enough data arrived
     }
 
-    for (int i = 0; i < codec->EncoderParams.OriginalCount; ++i)
+    // Validate input is specifying original data and not recovery data
+    if (id >= (unsigned int)codec->EncoderParams.OriginalCount)
     {
-        int index = codec->Blocks[i].Index;
-        if (index != id)
-        {
-            continue;
-        }
-
-        if (index == codec->EncoderParams.OriginalCount - 1)
-        {
-            memcpy(block, codec->Blocks[i].Block, codec->LastBlockSize);
-        }
-        else
-        {
-            memcpy(block, codec->Blocks[i].Block, codec->EncoderParams.BlockBytes);
-        }
-        return 0;
+        return -4;
     }
 
-    return -1;
+    // Block indices after cm256 decoding completes should be in order
+    const int index = codec->Blocks[id].Index;
+    if (index != id)
+    {
+        assert(false);
+        return -5; // Software bug?
+    }
+
+    // The last block may be smaller than the rest
+    int copyBytes = codec->EncoderParams.BlockBytes;
+    if (index == codec->EncoderParams.OriginalCount - 1)
+        copyBytes = codec->LastBlockSize;
+
+    memcpy(blockOut, codec->Blocks[index].Data, copyBytes);
+    return 0;
 }
 
 int wh256_decoder_becomes_encoder(wh256_state E)
@@ -470,8 +514,9 @@ int wh256_decoder_becomes_encoder(wh256_state E)
         return (r == wirehair::Result::R_WIN) ? 0 : -2;
     }
 
-    // FIXME: Make this work for CM256 also by sorting the blocks back into ascending order
-    return -3;
+    // CM256 decoder is already initializing the Blocks[] array to what we need
+    // for the encoder.
+    return 0;
 }
 
 void wh256_free(wh256_state E)

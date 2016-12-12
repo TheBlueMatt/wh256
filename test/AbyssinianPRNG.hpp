@@ -47,9 +47,9 @@ namespace cat {
 */
 class CAT_EXPORT Abyssinian
 {
-	u64 _x, _y;
-
 public:
+    u64 _x, _y;
+
 	CAT_INLINE void Initialize(u32 x, u32 y)
 	{
 		// Based on the mixing functions of MurmurHash3

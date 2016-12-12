@@ -104,6 +104,7 @@ class Codec
 #if defined(CAT_ALL_ORIGINAL)
     bool _all_original;                         // Boolean: Only seen original data block identifiers
 #endif
+    bool _encoder_was_decoder;                  // Boolean: Encoder was originally a decoder
 
     // Peeling state
     struct PeelRow;

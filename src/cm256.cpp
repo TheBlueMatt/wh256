@@ -143,7 +143,7 @@ extern "C" void cm256_encode_block(
     {
         // No meaningful operation here, degenerate to outputting the same data each time.
 
-        memcpy(recoveryBlock, originals[0].Block, params.BlockBytes);
+        memcpy(recoveryBlock, originals[0].Data, params.BlockBytes);
         return;
     }
     // else OriginalCount >= 2:
@@ -153,10 +153,10 @@ extern "C" void cm256_encode_block(
     // so it is merely a parity of the original data.
     if (recoveryBlockIndex == params.OriginalCount)
     {
-        gf256_addset_mem(recoveryBlock, originals[0].Block, originals[1].Block, params.BlockBytes);
+        gf256_addset_mem(recoveryBlock, originals[0].Data, originals[1].Data, params.BlockBytes);
         for (int j = 2; j < params.OriginalCount; ++j)
         {
-            gf256_add_mem(recoveryBlock, originals[j].Block, params.BlockBytes);
+            gf256_add_mem(recoveryBlock, originals[j].Data, params.BlockBytes);
         }
         return;
     }
@@ -183,7 +183,7 @@ extern "C" void cm256_encode_block(
             const uint8_t y_0 = 0;
             const uint8_t matrixElement = GetMatrixElement(x_i, x_0, y_0);
 
-            gf256_mul_mem(recoveryBlock, originals[0].Block, matrixElement, params.BlockBytes);
+            gf256_mul_mem(recoveryBlock, originals[0].Data, matrixElement, params.BlockBytes);
         }
 
         // For each original data column:
@@ -192,7 +192,7 @@ extern "C" void cm256_encode_block(
             const uint8_t y_j = static_cast<uint8_t>(j);
             const uint8_t matrixElement = GetMatrixElement(x_i, x_0, y_j);
 
-            gf256_muladd_mem(recoveryBlock, matrixElement, originals[j].Block, params.BlockBytes);
+            gf256_muladd_mem(recoveryBlock, matrixElement, originals[j].Data, params.BlockBytes);
         }
     }
 }
@@ -259,6 +259,9 @@ struct CM256Decoder
 
     // Generate the LU decomposition of the matrix
     void GenerateLDUDecomposition(uint8_t* matrix_L, uint8_t* diag_D, uint8_t* matrix_U);
+
+    // Sort blocks back into the original order
+    void SortBlocks(cm256_block* blocks);
 };
 
 bool CM256Decoder::Initialize(cm256_encoder_params& params, cm256_block* blocks)
@@ -319,13 +322,13 @@ bool CM256Decoder::Initialize(cm256_encoder_params& params, cm256_block* blocks)
 void CM256Decoder::DecodeM1()
 {
     // XOR all other blocks into the recovery block
-    uint8_t* outBlock = static_cast<uint8_t*>(Recovery[0]->Block);
+    uint8_t* outBlock = static_cast<uint8_t*>(Recovery[0]->Data);
     const uint8_t* inBlock = nullptr;
 
     // For each block:
     for (int ii = 0; ii < OriginalCount; ++ii)
     {
-        const uint8_t* inBlock2 = static_cast<const uint8_t*>(Original[ii]->Block);
+        const uint8_t* inBlock2 = static_cast<const uint8_t*>(Original[ii]->Data);
 
         if (!inBlock)
         {
@@ -470,12 +473,12 @@ void CM256Decoder::Decode()
     // Eliminate original data from the the recovery rows
     for (int originalIndex = 0; originalIndex < OriginalCount; ++originalIndex)
     {
-        const uint8_t* inBlock = static_cast<const uint8_t*>(Original[originalIndex]->Block);
+        const uint8_t* inBlock = static_cast<const uint8_t*>(Original[originalIndex]->Data);
         const uint8_t inRow = Original[originalIndex]->Index;
 
         for (int recoveryIndex = 0; recoveryIndex < N; ++recoveryIndex)
         {
-            uint8_t* outBlock = static_cast<uint8_t*>(Recovery[recoveryIndex]->Block);
+            uint8_t* outBlock = static_cast<uint8_t*>(Recovery[recoveryIndex]->Data);
             const uint8_t x_i = Recovery[recoveryIndex]->Index;
             const uint8_t y_j = inRow;
             const uint8_t matrixElement = GetMatrixElement(x_i, x_0, y_j);
@@ -516,12 +519,12 @@ void CM256Decoder::Decode()
     // For each column:
     for (int j = 0; j < N - 1; ++j)
     {
-        const void* block_j = Recovery[j]->Block;
+        const void* block_j = Recovery[j]->Data;
 
         // For each row:
         for (int i = j + 1; i < N; ++i)
         {
-            void* block_i = Recovery[i]->Block;
+            void* block_i = Recovery[i]->Data;
             const uint8_t c_ij = *matrix_L++; // Matrix elements are stored column-first, top-down.
 
             gf256_muladd_mem(block_i, c_ij, block_j, Params.BlockBytes);
@@ -533,7 +536,7 @@ void CM256Decoder::Decode()
     */
     for (int i = 0; i < N; ++i)
     {
-        void* block = Recovery[i]->Block;
+        void* block = Recovery[i]->Data;
 
         Recovery[i]->Index = ErasuresIndices[i];
 
@@ -545,11 +548,11 @@ void CM256Decoder::Decode()
     */
     for (int j = N - 1; j >= 1; --j)
     {
-        const void* block_j = Recovery[j]->Block;
+        const void* block_j = Recovery[j]->Data;
 
         for (int i = j - 1; i >= 0; --i)
         {
-            void* block_i = Recovery[i]->Block;
+            void* block_i = Recovery[i]->Data;
             const uint8_t c_ij = *matrix_U++; // Matrix elements are stored column-first, bottom-up.
 
             gf256_muladd_mem(block_i, c_ij, block_j, Params.BlockBytes);
@@ -557,6 +560,34 @@ void CM256Decoder::Decode()
     }
 
     delete[] dynamicMatrix;
+}
+
+void CM256Decoder::SortBlocks(cm256_block* blocks)
+{ 
+    const int K = Params.OriginalCount;
+
+    // Expected input is with punctured original data followed by recovery
+    // data that has been transmogrified back into the original data.
+    // For example: 1 2 4 5 7 | 0 3 6
+
+    for (int i = 0; i < K; ++i)
+    {
+        for (int j = i; j < K; ++j)
+        {
+            if (blocks[j].Index == i)
+            {
+                // If not already in the right place:
+                if (i != j)
+                {
+                    // Swap block into right place
+                    cm256_block temp = blocks[i];
+                    blocks[i] = blocks[j];
+                    blocks[j] = temp;
+                }
+                break;
+            }
+        }
+    }
 }
 
 extern "C" int cm256_decode(
@@ -592,20 +623,23 @@ extern "C" int cm256_decode(
         return -5;
     }
 
-    // If nothing is erased:
-    if (state.RecoveryCount <= 0)
+    // If recovery is needed:
+    if (state.RecoveryCount > 0)
     {
-        return 0;
+        // If m=1:
+        if (params.RecoveryCount == 1)
+        {
+            state.DecodeM1();
+        }
+        else
+        {
+            // Decode for m>1
+            state.Decode();
+        }
     }
 
-    // If m=1:
-    if (params.RecoveryCount == 1)
-    {
-        state.DecodeM1();
-        return 0;
-    }
+    // Sort blocks back into original order
+    state.SortBlocks(blocks);
 
-    // Decode for m>1
-    state.Decode();
     return 0;
 }
