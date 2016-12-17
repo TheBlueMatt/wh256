@@ -155,7 +155,7 @@ wh256_state wh256_encoder_init(wh256_state reuse_E, const void* message, int byt
         // out to the block length.
 
         // If there is no need to pad out the last block:
-        codec->LastBlockSize = bytes - N * block_bytes;
+        codec->LastBlockSize = bytes - (N-1) * block_bytes;
         if (codec->LastBlockSize <= 0)
         {
             codec->LastBlockSize = block_bytes;
@@ -166,7 +166,7 @@ wh256_state wh256_encoder_init(wh256_state reuse_E, const void* message, int byt
             codec->LastBlock = new uint8_t[block_bytes];
 
             // Copy the original data into the LastBlock workspace and pad it with zeroes
-            memcpy(codec->LastBlock, block, codec->LastBlockSize);
+            memcpy(codec->LastBlock, block - block_bytes, codec->LastBlockSize);
             memset(codec->LastBlock + codec->LastBlockSize, 0, block_bytes - codec->LastBlockSize);
 
             codec->Blocks[N - 1].Data = codec->LastBlock;
@@ -326,7 +326,7 @@ wh256_state wh256_decoder_init(wh256_state reuse_E, int bytes, int block_bytes)
         codec->EncoderParams.OriginalCount = N;
         codec->EncoderParams.RecoveryCount = 256 - N; // Provide for as many unique recovery blocks as we can get
 
-        codec->LastBlockSize = bytes - N * block_bytes;
+        codec->LastBlockSize = bytes - (N-1) * block_bytes;
         if (codec->LastBlockSize <= 0)
         {
             codec->LastBlockSize = block_bytes;
